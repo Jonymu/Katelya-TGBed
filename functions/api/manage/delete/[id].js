@@ -6,33 +6,53 @@ export async function onRequest(context) {
     try {
       // 优先读取 KV 元数据，判断存储类型与 Telegram 信息
       let record = null;
+      let actualKVKey = null; // 🔥 记录实际找到的完整Key（包含前缀）
+      
       if (env.img_url) {
         const prefixes = ['img:', 'vid:', 'aud:', 'doc:', 'r2:', ''];
         for (const prefix of prefixes) {
           const key = `${prefix}${fileId}`;
           record = await env.img_url.getWithMetadata(key);
-          if (record && record.metadata) break;
+          if (record && record.metadata) {
+            actualKVKey = key; // 🔥 保存找到的实际Key
+            console.log('Found KV record with key:', actualKVKey);
+            break;
+          }
         }
       }
 
-      const metadata = record?.metadata || {};
+      if (!record || !record.metadata) {
+        throw new Error('文件元数据不存在，无法删除');
+      }
+
+      const metadata = record.metadata;
       const isR2 = fileId.startsWith('r2:') || metadata.storageType === 'r2' || metadata.storage === 'r2';
 
       // R2 文件：先删对象，再删 KV
       if (isR2) {
         const r2Key = metadata.r2Key || fileId.replace('r2:', '');
+        console.log('Deleting R2 object:', r2Key);
+        
         if (!env.R2_BUCKET) {
           throw new Error('R2 未配置，无法删除对象');
         }
+        
+        // 🔥 先删除R2对象，等待确认
         await env.R2_BUCKET.delete(r2Key);
-        if (env.img_url) {
-          await env.img_url.delete(fileId);
+        console.log('R2 object deleted successfully');
+        
+        // 🔥 然后删除KV元数据（使用正确的Key）
+        if (env.img_url && actualKVKey) {
+          await env.img_url.delete(actualKVKey);
+          console.log('KV metadata deleted:', actualKVKey);
         }
 
         return new Response(JSON.stringify({ 
           success: true, 
-          message: '已从 R2 与 KV 删除',
-          fileId
+          message: '已从 R2 与 KV 彻底删除',
+          fileId,
+          r2Key,
+          kvKey: actualKVKey
         }), {
           status: 200,
           headers: { 'Content-Type': 'application/json' }
@@ -41,29 +61,45 @@ export async function onRequest(context) {
 
       // Telegram 文件：尝试删除消息（需要 metadata.telegramMessageId）
       let telegramDeleted = false;
+      
       if (metadata.telegramMessageId) {
+        console.log('Attempting to delete Telegram message:', metadata.telegramMessageId);
         telegramDeleted = await deleteTelegramMessage(metadata.telegramMessageId, env);
+        
+        if (telegramDeleted) {
+          console.log('Telegram message deleted successfully');
+        } else {
+          console.error('Telegram message deletion failed');
+        }
+      } else {
+        console.warn('No telegramMessageId found in metadata');
       }
 
-      if (!telegramDeleted) {
-        return new Response(JSON.stringify({
-          success: false,
-          error: 'Telegram 删除失败或缺少 messageId，已阻止伪删除'
-        }), {
-          status: 409,
-          headers: { 'Content-Type': 'application/json' }
-        });
+      // 🔥 严格模式：如果有messageId但删除失败，则报错阻止伪删除
+      if (metadata.telegramMessageId && !telegramDeleted) {
+        throw new Error('Telegram 消息删除失败，已阻止伪删除操作');
       }
 
-      // Telegram 删除成功后再删除 KV
-      if (env.img_url) {
-        await env.img_url.delete(fileId);
+      // 🔥 如果没有messageId，仍然删除KV元数据（让文件无法访问）
+      // 但会在响应中标注警告
+      if (env.img_url && actualKVKey) {
+        await env.img_url.delete(actualKVKey);
+        console.log('KV metadata deleted:', actualKVKey);
       }
+
+      const warningMessage = !metadata.telegramMessageId 
+        ? '警告：无 messageId，仅删除元数据，Telegram 原文件可能仍存在' 
+        : '';
 
       return new Response(JSON.stringify({ 
         success: true, 
-        message: '已从 Telegram 与 KV 删除',
-        fileId
+        message: telegramDeleted 
+          ? '已从 Telegram 与 KV 彻底删除' 
+          : '已删除 KV 元数据，文件已无法访问',
+        fileId,
+        kvKey: actualKVKey,
+        telegramDeleted,
+        warning: warningMessage
       }), {
         status: 200,
         headers: { 'Content-Type': 'application/json' }
