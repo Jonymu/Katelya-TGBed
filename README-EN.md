@@ -1,6 +1,6 @@
 <div align="center">
 
-# Katelya-TGBed
+# K-Vault
 
 > 🖼️ Free Image/File Hosting Solution, based on Cloudflare Pages and Telegram
 
@@ -8,9 +8,9 @@
 
 <br>
 
-![GitHub stars](https://img.shields.io/github/stars/katelya77/Katelya-TGBed?style=flat-square)
-![GitHub forks](https://img.shields.io/github/forks/katelya77/Katelya-TGBed?style=flat-square)
-![GitHub license](https://img.shields.io/github/license/katelya77/Katelya-TGBed?style=flat-square)
+![GitHub stars](https://img.shields.io/github/stars/katelya77/K-Vault?style=flat-square)
+![GitHub forks](https://img.shields.io/github/forks/katelya77/K-Vault?style=flat-square)
+![GitHub license](https://img.shields.io/github/license/katelya77/K-Vault?style=flat-square)
 
 </div>
 
@@ -102,7 +102,7 @@
 To enable the gallery and management features, you must configure KV:
 
 1. Cloudflare Dashboard → `Workers & Pages` → `KV`.
-2. Click `Create a Namespace`, name it `katelya-tgbed`.
+2. Click `Create a Namespace`, name it `k-vault`.
 3. Go to Pages Project → `Settings` → `Functions` → `KV namespace bindings`.
 4. Add binding: Variable name `img_url`, select the namespace you created.
 5. Redeploy the project.

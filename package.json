@@ -1,6 +1,6 @@
 {
-  "name": "katelya-tgbed",
-  "description": "Katelya-TGBed - Free File Hosting Service based on Telegram",
+  "name": "k-vault",
+  "description": "K-Vault - Free File Hosting Service based on Telegram",
   "version": "1.0.0",
   "scripts": {
     "ci-test": "concurrently --kill-others --success first \"npm start\" \"wait-on http://localhost:8080 && mocha --exit\"",

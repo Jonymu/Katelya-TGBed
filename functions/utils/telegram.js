@@ -174,13 +174,19 @@ export function shouldWriteTelegramMetadata(env) {
   return !shouldUseSignedTelegramLinks(env);
 }
 
-function getFileLinkSecret(env) {
-  return (
-    env?.FILE_URL_SECRET ||
-    env?.TG_FILE_URL_SECRET ||
-    env?.TG_Bot_Token ||
-    "tgbed-default-secret"
-  );
+function getFileLinkSecrets(env) {
+  const candidates = [
+    env?.FILE_URL_SECRET,
+    env?.TG_FILE_URL_SECRET,
+    env?.TG_Bot_Token,
+    "k-vault-default-secret",
+    // Legacy fallback keeps previously signed links valid.
+    "tgbed-default-secret",
+  ];
+
+  return [...new Set(candidates
+    .map((item) => (item == null ? "" : String(item).trim()))
+    .filter(Boolean))];
 }
 
 function truncateFileName(fileName, limit = 180) {
@@ -206,7 +212,8 @@ export async function createSignedTelegramFileId(
     mid: messageId ? Number(messageId) : undefined,
   };
   const payload = base64UrlEncode(JSON.stringify(payloadObj));
-  const signature = await signPayload(payload, getFileLinkSecret(env));
+  const [primarySecret] = getFileLinkSecrets(env);
+  const signature = await signPayload(payload, primarySecret);
   return `tgs_${payload}.${signature}.${ext}`;
 }
 
@@ -220,8 +227,18 @@ export async function parseSignedTelegramFileId(id, env) {
   const payload = match[1];
   const signature = match[2];
   const extFromSuffix = sanitizeFileExtension(match[3] || "bin");
-  const expected = await signPayload(payload, getFileLinkSecret(env));
-  if (!timingSafeEqual(signature, expected)) return null;
+  const secrets = getFileLinkSecrets(env);
+  let isValid = false;
+
+  for (const secret of secrets) {
+    const expected = await signPayload(payload, secret);
+    if (timingSafeEqual(signature, expected)) {
+      isValid = true;
+      break;
+    }
+  }
+
+  if (!isValid) return null;
 
   let parsed;
   try {
@@ -295,4 +312,3 @@ export function getTelegramFileFromMessage(message) {
 
   return null;
 }
-

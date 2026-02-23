@@ -1,6 +1,6 @@
 <div align="center">
 
-# Katelya-TGBed
+# K-Vault
 
 > 免费图片/文件托管解决方案，基于 Cloudflare Pages，支持多种存储后端
 
@@ -8,9 +8,9 @@
 
 <br>
 
-![GitHub stars](https://img.shields.io/github/stars/katelya77/Katelya-TGBed?style=flat-square)
-![GitHub forks](https://img.shields.io/github/forks/katelya77/Katelya-TGBed?style=flat-square)
-![GitHub license](https://img.shields.io/github/license/katelya77/Katelya-TGBed?style=flat-square)
+![GitHub stars](https://img.shields.io/github/stars/katelya77/K-Vault?style=flat-square)
+![GitHub forks](https://img.shields.io/github/forks/katelya77/K-Vault?style=flat-square)
+![GitHub license](https://img.shields.io/github/license/katelya77/K-Vault?style=flat-square)
 
 </div>
 
@@ -161,7 +161,7 @@ curl -X POST "http://127.0.0.1:8081/bot<YOUR_BOT_TOKEN>/setWebhook" \
 启用图片管理功能需要配置 KV：
 
 1. 进入 Cloudflare Dashboard → `Workers 和 Pages` → `KV`
-2. 点击 `创建命名空间`，命名为 `katelya-tgbed`
+2. 点击 `创建命名空间`，命名为 `k-vault`
 3. 进入 Pages 项目 → `设置` → `函数` → `KV 命名空间绑定`
 4. 添加绑定：变量名 `img_url`，选择创建的命名空间
 5. 重新部署项目
@@ -172,7 +172,7 @@ curl -X POST "http://127.0.0.1:8081/bot<YOUR_BOT_TOKEN>/setWebhook" \
 
 1. **创建存储桶**
    - Cloudflare Dashboard → `R2 对象存储` → `创建存储桶`
-   - 命名为 `katelya-files`
+   - 命名为 `k-vault-files`
 
 2. **绑定到项目**
    - Pages 项目 → `设置` → `函数` → `R2 存储桶绑定`
@@ -405,7 +405,7 @@ curl -X POST "http://127.0.0.1:8081/bot<YOUR_BOT_TOKEN>/setWebhook" \
 - [Cloudflare Pages 文档](https://developers.cloudflare.com/pages/)
 - [Telegram Bot API](https://core.telegram.org/bots/api)
 - [Telegram Bot API Server（自部署）](https://github.com/tdlib/telegram-bot-api)
-- [问题反馈](https://github.com/katelya77/Katelya-TGBed/issues)
+- [问题反馈](https://github.com/katelya77/K-Vault/issues)
 
 ---
 
@@ -425,4 +425,4 @@ MIT License
 
 ## Star History
 
-[![Star History Chart](https://api.star-history.com/svg?repos=katelya77/Katelya-TGBed&type=Date)](https://star-history.com/#katelya77/Katelya-TGBed&Date)
+[![Star History Chart](https://api.star-history.com/svg?repos=katelya77/K-Vault&type=Date)](https://star-history.com/#katelya77/K-Vault&Date)
