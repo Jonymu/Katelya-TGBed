@@ -7,6 +7,8 @@
   <link rel="icon" type="image/x-icon" href="/favicon.ico">
   <link rel="apple-touch-icon" href="/logo.png">
   <link rel="shortcut icon" href="/favicon.ico">
+  <link rel="stylesheet" href="/theme.css">
+  <script src="/theme.js"></script>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free/css/all.min.css">
   <style>
     :root {
@@ -452,25 +454,6 @@
     }
 
     /* 深色模式支持 */
-    @media (prefers-color-scheme: dark) {
-      :root {
-        --card-bg: rgba(30, 30, 40, 0.95);
-      }
-      
-      body {
-        background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
-      }
-      
-      .title { color: #fff; }
-      .subtitle { color: #aaa; }
-      .form-group label { color: #bbb; }
-      .form-input { 
-        background: #2a2a3e; 
-        border-color: #3a3a4e; 
-        color: #fff;
-      }
-      .form-input::placeholder { color: #666; }
-    }
   </style>
 </head>
 <body>

@@ -7,6 +7,8 @@
     <link rel="icon" type="image/x-icon" href="/favicon.ico">
     <link rel="apple-touch-icon" href="/logo.png">
     <link rel="shortcut icon" href="/favicon.ico">
+  <link rel="stylesheet" href="/theme.css">
+  <script src="/theme.js"></script>
     <link
       rel="stylesheet"
       href="https://cdn.jsdelivr.net/npm/element-ui@2.15.3/lib/theme-chalk/index.css"
@@ -15,26 +17,7 @@
       rel="stylesheet"
       href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free/css/all.min.css"
     />
-    <script>
-      (() => {
-        try {
-          const savedMode = localStorage.getItem("themeMode");
-          const prefersDark =
-            window.matchMedia &&
-            window.matchMedia("(prefers-color-scheme: dark)").matches;
-          const mode =
-            savedMode === "dark" || savedMode === "light"
-              ? savedMode
-              : prefersDark
-                ? "dark"
-                : "light";
-          document.documentElement.setAttribute("data-theme", mode);
-        } catch (e) {
-          document.documentElement.setAttribute("data-theme", "light");
-        }
-      })();
-    </script>
-    <style>
+<style>
       :root {
         --primary-color: #8a4bff;
         --primary-light: #b39ddb;
@@ -1571,15 +1554,9 @@
           <span>K-Vault</span>
         </div>
         <div class="nav-links">
-          <button
-            type="button"
-            class="theme-toggle-btn"
-            @click="toggleTheme"
-            :title="themeMode === 'dark' ? '切换到亮色模式' : '切换到夜间模式'"
-            :aria-label="themeMode === 'dark' ? '切换到亮色模式' : '切换到夜间模式'"
-          >
-            <i :class="themeMode === 'dark' ? 'fas fa-sun' : 'fas fa-moon'"></i>
-            <span>{{ themeMode === 'dark' ? '亮色' : '夜间' }}</span>
+          <button type="button" class="theme-toggle-btn" data-theme-toggle aria-label="切换主题">
+            <i class="fas fa-moon" data-theme-icon></i>
+            <span data-theme-label>夜间</span>
           </button>
           <a href="./"><i class="fas fa-home"></i> 首页</a>
           <a href="./gallery.html" v-if="!isGuest"
@@ -2189,7 +2166,6 @@
           linkFormat: "url",
           previewData: null, // 新的预览数据对象
           toasts: [],
-          themeMode: "light",
           isAuthenticated: false,
           storageMode: "telegram", // 存储模式：telegram, r2, s3, discord, huggingface
           storageTarget: "Telegram 频道", // 显示文本
@@ -2246,45 +2222,6 @@
           },
         },
         methods: {
-          initTheme() {
-            const currentTheme = document.documentElement.getAttribute("data-theme");
-            if (currentTheme === "dark" || currentTheme === "light") {
-              this.themeMode = currentTheme;
-              return;
-            }
-
-            let targetTheme = "light";
-            try {
-              const savedMode = localStorage.getItem("themeMode");
-              if (savedMode === "dark" || savedMode === "light") {
-                targetTheme = savedMode;
-              } else if (
-                window.matchMedia &&
-                window.matchMedia("(prefers-color-scheme: dark)").matches
-              ) {
-                targetTheme = "dark";
-              }
-            } catch (e) {
-              targetTheme = "light";
-            }
-
-            this.applyTheme(targetTheme, false);
-          },
-
-          applyTheme(mode, persist = true) {
-            const normalizedMode = mode === "dark" ? "dark" : "light";
-            this.themeMode = normalizedMode;
-            document.documentElement.setAttribute("data-theme", normalizedMode);
-
-            if (!persist) return;
-            try {
-              localStorage.setItem("themeMode", normalizedMode);
-            } catch (e) {}
-          },
-
-          toggleTheme() {
-            this.applyTheme(this.themeMode === "dark" ? "light" : "dark");
-          },
           // 上传触发
           triggerUpload() {
             this.$refs.fileInput.click();
@@ -3493,7 +3430,6 @@
           },
         },
         mounted() {
-          this.initTheme();
 
           // 检查认证状态（优先执行）
           this.checkAuth();
