@@ -23,10 +23,11 @@
         <div class="header-content">
           <span class="title" @click="refreshDashboard">Dashboard</span>
           <div class="search-card"><el-input v-model="search" size="mini" placeholder="输入关键字搜索"></el-input></div>
-          <el-tooltip content="批量上传" placement="bottom">
-            <span class="stats" @click="handleUpload"><i class="fas fa-upload upload-icon"></i><span class="stats-text">记录数: </span>{{ Number }}</span>
-          </el-tooltip>
-          <input type="file" ref="fileInput" style="display: none;" multiple @change="uploadFiles">
+          <span class="stats" role="status" aria-live="polite">
+            <i class="fas fa-chart-line stats-icon"></i>
+            <span class="stats-text">总记录: {{ totalCount || Number }}</span>
+            <small class="stats-loaded">已加载 {{ Number }}</small>
+          </span>
           <div class="actions">
             <el-tooltip content="文件类型" placement="bottom">
               <el-dropdown @command="switchFileType" :hide-on-click="false">
@@ -265,7 +266,12 @@
       @current-change="handlePageChange" :current-page.sync="currentPage" />
   </div>
   <div style="text-align:center;margin-top:16px;">
-    <el-button v-if="nextCursor" @click="loadMore">加载更多</el-button>
+    <el-button v-if="nextCursor" :loading="isLoadingMore" :disabled="isLoadingMore" @click="loadMore">
+      {{ isLoadingMore ? '加载中...' : ('加载更多 (' + Number + '/' + (totalCount || Number) + ')') }}
+    </el-button>
+    <div v-else-if="(totalCount || Number) > 0 && Number >= (totalCount || Number)" class="load-more-end">
+      全部加载完成，共 {{ totalCount || Number }} 条
+    </div>
   </div>
   <el-footer class="footer">
           <div>Powered By K-Vault</div>
@@ -285,6 +291,7 @@
     data: {
       baseURL: document.location.origin,
       Number: 0,
+      totalCount: 0,
       fileConfig: {
         image: {
           name: '图片',
@@ -317,6 +324,7 @@
       },
         tableData: [],
         nextCursor: null,
+      isLoadingMore: false,
       search: '',
       currentPage: 1,
       pageSize: 15,
@@ -400,41 +408,51 @@
         window.location.href = './login.html';
       },
       handlePageChange(page) { this.currentPage = page; },  // 切换页面
-        handleUpload() { this.$refs.fileInput.click(); },  // 打开文件选择对话框
-        sort(command) { this.sortOption = command; },  // 切换排序方式
-        filter(command) { this.filterOption = command; },  // 切换筛选方式
-        loadMore() {
-          const opts = { method: 'GET', credentials: 'include' };
-          const url = this.nextCursor
-            ? `./api/manage/list?cursor=${encodeURIComponent(this.nextCursor)}`
-            : `./api/manage/list?limit=100`;
+      normalizeListItem(file) {
+        return {
+          ...file,
+          selected: false,
+          metadata: {
+            ...file.metadata,
+            liked: file.metadata?.liked ?? false,
+            fileName: file.metadata?.fileName ?? file.name,
+            fileSize: file.metadata?.fileSize ?? 0,
+          },
+        };
+      },
+      mergeListData(files) {
+        const map = new Map(this.tableData.map((item) => [item.name, item]));
+        files.forEach((item) => {
+          if (!item || !item.name) return;
+          const prev = map.get(item.name);
+          map.set(item.name, prev ? { ...prev, ...item, selected: prev.selected || item.selected } : item);
+        });
+        this.tableData = Array.from(map.values());
+      },
+      sort(command) { this.sortOption = command; },  // 切换排序方式
+      filter(command) { this.filterOption = command; },  // 切换筛选方式
+      async loadMore() {
+        if (this.isLoadingMore || !this.nextCursor) return;
+        this.isLoadingMore = true;
+        try {
+          const result = await fetch(`./api/manage/list?cursor=${encodeURIComponent(this.nextCursor)}`, {
+            method: 'GET',
+            credentials: 'include',
+          }).then((r) => r.json());
 
-          fetch(url, opts)
-            .then(r => r.json())
-            .then(result => {
-              const invalidPrefixes = ['session:', 'chunk:', 'upload:', 'temp:'];
-              const files = (result.keys || []).filter(file => {
-                if (!file.name) return false;
-                if (invalidPrefixes.some(prefix => file.name.startsWith(prefix))) return false;
-                const metadata = file.metadata || {};
-                return metadata.fileName && metadata.TimeStamp !== undefined && metadata.TimeStamp !== null;
-              });
-              const mapped = files.map(file => ({
-                ...file,
-                selected: false,
-                metadata: {
-                  ...file.metadata,
-                  liked: file.metadata.liked ?? false,
-                  fileName: file.metadata.fileName ?? file.name,
-                  fileSize: file.metadata.fileSize ?? 0
-                }
-              }));
-              this.tableData = this.tableData.concat(mapped);
-              this.nextCursor = result.list_complete ? null : result.cursor;
-              this.updateStats();
-            })
-            .catch(() => this.$message.error('同步数据时出错，请检查网络连接'));
-        },
+          const mapped = (result.keys || []).map((file) => this.normalizeListItem(file));
+          this.mergeListData(mapped);
+          this.nextCursor = result.list_complete ? null : result.cursor;
+          if (Number.isFinite(result?.stats?.total)) {
+            this.totalCount = result.stats.total;
+          }
+          this.updateStats();
+        } catch {
+          this.$message.error('加载更多失败，请稍后重试');
+        } finally {
+          this.isLoadingMore = false;
+        }
+      },
         sortData(data) {
           return this.sortOption === 'nameAsc' ? data.sort((a, b) => a.name.localeCompare(b.name)) :
             this.sortOption === 'sizeDesc' ? data.sort((a, b) => b.metadata.fileSize - a.metadata.fileSize) :
@@ -479,6 +497,9 @@
       },
       updateStats() {
         this.Number = this.tableData.length;
+        if (!Number.isFinite(this.totalCount) || this.totalCount < this.Number) {
+          this.totalCount = this.Number;
+        }
         let fileCount = {image: 0, video: 0, audio: 0, document: 0};
         this.tableData.forEach(file => {
           const ext = file.name.split('.').pop().toLowerCase();
@@ -487,7 +508,7 @@
           ) || 'document';
           fileCount[type]++;
         });
-        Object.keys(this.fileConfig).forEach(type => {
+        ['image', 'video', 'audio', 'document'].forEach((type) => {
           this.fileConfig[type].count = fileCount[type] || 0;
         });
       },
@@ -566,27 +587,20 @@
         }
         event.target.value = '';
       },
-        refreshFileList() {  // 不刷新页面,仅更新数据
-          fetch("./api/manage/list?limit=100", { method: 'GET', credentials: 'include' })
-            .then(response => response.json())
-            .then(result => {
-              const files = result.keys || [];
-              this.tableData = files.map(file => ({
-                ...file,
-                selected: false,
-                metadata: {
-                  ...file.metadata,
-                  liked: file.metadata.liked ?? false,
-                  fileName: file.metadata.fileName ?? file.name,
-                  fileSize: file.metadata.fileSize ?? 0
-                }
-              }));
-              this.nextCursor = result.list_complete ? null : result.cursor;
-              this.updateStats();
-              this.sortData(this.tableData);
-            })
-            .catch(() => this.$message.error('刷新文件列表失败，请检查网络连接'));
-        },
+      async refreshFileList() {  // 不刷新页面，仅更新数据
+        try {
+          const result = await fetch("./api/manage/list?limit=100&includeStats=1", { method: 'GET', credentials: 'include' })
+            .then(response => response.json());
+          const mapped = (result.keys || []).map((file) => this.normalizeListItem(file));
+          this.tableData = mapped;
+          this.nextCursor = result.list_complete ? null : result.cursor;
+          this.totalCount = Number.isFinite(result?.stats?.total) ? result.stats.total : mapped.length;
+          this.updateStats();
+          this.sortData(this.tableData);
+        } catch {
+          this.$message.error('刷新文件列表失败，请检查网络连接');
+        }
+      },
       toggleSelect(index, name) {
         const fileIndex = this.tableData.findIndex(file => file.name === name);
         this.tableData[fileIndex].selected = !this.tableData[fileIndex].selected;
@@ -980,36 +994,22 @@
       this.updateWindowWidth();
 
       // 获取文件列表数据
-        fetch("./api/manage/list?limit=100", { method: 'GET', credentials: 'include' })
-          .then(response => response.json())
-          .then(result => {
-            console.log("result: ", result);
-            const invalidPrefixes = ['session:', 'chunk:', 'upload:', 'temp:'];
-            const files = (result.keys || []).filter(file => {
-              if (!file.name) return false;
-              if (invalidPrefixes.some(prefix => file.name.startsWith(prefix))) return false;
-              const metadata = file.metadata || {};
-              return metadata.fileName && metadata.TimeStamp !== undefined && metadata.TimeStamp !== null;
-            });
-            this.nextCursor = result.list_complete ? null : result.cursor;
-            this.tableData = files.map(file => ({
-              ...file,
-              selected: false,
-              metadata: {
-                ...file.metadata,
-                liked: file.metadata.liked ?? false,
-                fileName: file.metadata.fileName ?? file.name,
-                fileSize: file.metadata.fileSize ?? 0
-              }
-            }));
-            this.updateStats();
-            // 恢复设置
-            this.sortOption = localStorage.getItem('sortOption') || this.sortOption;
-            this.sortData(this.tableData);
-            this.fileType = localStorage.getItem('fileType') || this.fileType;
-            this.switchFileType(this.fileType);
-          })
-          .catch(() => this.$message.error('同步数据时出错，请检查网络连接'));
+      try {
+        const result = await fetch("./api/manage/list?limit=100&includeStats=1", { method: 'GET', credentials: 'include' })
+          .then(response => response.json());
+        const mapped = (result.keys || []).map((file) => this.normalizeListItem(file));
+        this.tableData = mapped;
+        this.nextCursor = result.list_complete ? null : result.cursor;
+        this.totalCount = Number.isFinite(result?.stats?.total) ? result.stats.total : mapped.length;
+        this.updateStats();
+        // 恢复设置
+        this.sortOption = localStorage.getItem('sortOption') || this.sortOption;
+        this.sortData(this.tableData);
+        this.fileType = localStorage.getItem('fileType') || this.fileType;
+        this.switchFileType(this.fileType);
+      } catch {
+        this.$message.error('同步数据时出错，请检查网络连接');
+      }
 
       if (localStorage.getItem('quickWebsites')) {
         this.quickWebsites = JSON.parse(localStorage.getItem('quickWebsites'));

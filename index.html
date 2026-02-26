@@ -1588,7 +1588,7 @@
       </div>
 
       <!-- 访客模式提示条 -->
-      <div class="guest-notice" v-if="isGuest && guestUploadConfig">
+      <div class="guest-notice" v-if="!authChecking && isGuest && guestUploadConfig">
         <i class="fas fa-user-clock"></i>
         <span
           >访客模式 - 单文件最大 {{ formatSize(guestUploadConfig.maxFileSize)
@@ -1606,7 +1606,7 @@
               <span>上传文件</span>
             </div>
             <span
-              v-if="isGuest && guestUploadConfig"
+              v-if="!authChecking && isGuest && guestUploadConfig"
               style="color: var(--warning-text-color); font-size: 0.85em"
               >访客模式 - 单文件最大 {{
               formatSize(guestUploadConfig.maxFileSize) }}</span
@@ -1627,7 +1627,7 @@
           >
             <i class="fas fa-cloud-upload-alt upload-icon"></i>
             <div class="upload-text">点击或拖拽文件到此区域上传</div>
-            <div class="upload-hint" v-if="isGuest && guestUploadConfig">
+            <div class="upload-hint" v-if="!authChecking && isGuest && guestUploadConfig">
               访客模式：单文件最大 {{ formatSize(guestUploadConfig.maxFileSize)
               }}，不支持分片上传
             </div>
@@ -2183,7 +2183,8 @@
           r2Available: false, // R2 是否可用
           s3Available: false, // S3 是否可用
           discordAvailable: false, // Discord 是否可用
-          huggingfaceAvailable: false, // HuggingFace 是否可用
+          huggingfaceAvailable: false,
+          authChecking: true, // 是否正在检查认证状态
           isGuest: false, // 是否为访客模式
           guestUploadConfig: null, // 访客上传配置 { maxFileSize, maxDailyUploads }
           uploadConfig: {
@@ -3307,41 +3308,46 @@
 
           // 检查认证状态
           async checkAuth() {
+            this.authChecking = true;
             try {
               const response = await fetch("/api/auth/check", {
                 credentials: "include",
               });
               const data = await response.json();
 
-              // 如果需要认证但未认证
               if (data.authRequired && !data.authenticated) {
-                // 检查是否允许访客上传
+                this.isAuthenticated = false;
                 if (data.guestUpload && data.guestUpload.enabled) {
                   this.isGuest = true;
                   this.guestUploadConfig = {
-                    maxFileSize:
-                      data.guestUpload.maxFileSize || 5 * 1024 * 1024, // 默认 5MB
-                    maxDailyUploads: data.guestUpload.dailyLimit || 10, // 默认 10 次
+                    maxFileSize: data.guestUpload.maxFileSize || 5 * 1024 * 1024,
+                    maxDailyUploads: data.guestUpload.dailyLimit || 10,
                   };
-                  // 访客强制使用 telegram 模式
                   this.storageMode = "telegram";
                   this.storageTarget = "Telegram 频道";
-                  return;
+                  return true;
                 }
-                // 没有访客上传权限，跳转登录
                 window.location.href =
                   "/login.html?redirect=" +
                   encodeURIComponent(window.location.pathname);
-                return;
+                return false;
               }
 
+              this.isGuest = false;
+              this.guestUploadConfig = null;
               this.isAuthenticated = data.authRequired && data.authenticated;
+              return true;
             } catch (e) {
               console.error("Auth check failed:", e);
+              this.isGuest = false;
+              this.guestUploadConfig = null;
+              return true;
+            } finally {
+              this.authChecking = false;
             }
           },
 
-          // 检查存储目标
+          // 妫€鏌ュ瓨鍌ㄧ洰鏍?
           async checkStorageTarget() {
             try {
               const response = await fetch("/api/status", {
@@ -3422,6 +3428,7 @@
 
             const config = modeConfig[mode];
             if (!config) return;
+            if (this.authChecking) return;
 
             // 访客只允许 telegram 和 r2
             if (this.isGuest && !["telegram", "r2"].includes(mode)) {
@@ -3440,13 +3447,14 @@
             this.showToast(`已切换到 ${config.label}`, "success");
           },
         },
-        mounted() {
+        async mounted() {
 
-          // 检查认证状态（优先执行）
-          this.checkAuth();
+          // 妫€鏌ヨ璇佺姸鎬侊紙浼樺厛鎵ц锛?
+          const shouldContinue = await this.checkAuth();
+          if (!shouldContinue) return;
 
-          // 检查存储目标
-          this.checkStorageTarget();
+          // 妫€鏌ュ瓨鍌ㄧ洰鏍?
+          await this.checkStorageTarget();
 
           // 加载历史记录
           this.loadHistory();
